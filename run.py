@@ -2,7 +2,16 @@
 # @Author: xiaolizhang
 
 import yaml
-import argpars
+import argparse
 
-class Config(object):
-    def __int__(self):
+from utils.config import Config
+
+
+def run():
+    conf = Config()
+
+    return None
+
+
+if __name__ == '__main__':
+    run()
