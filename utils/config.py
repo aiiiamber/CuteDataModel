@@ -10,12 +10,21 @@ class Config(object):
         self.args = _parse_args()
         # load schema
         self.schema = self.load_yaml(self.args.schema_path)
+        self._model_conf = self.load_yaml(self.args.model_path)
         # parse feature info
         self.column_names = list(self.schema.keys())
         self.label_column, self.index_column = '', ''
         self.fc_columns, self.category_columns, self.numerical_columns = [], [], []
         self.parse_schema_basic_info()
         self.has_category = 0 if len(self.category_columns) == 0 else 1
+
+    @property
+    def balanced(self):
+        return self.args.balanced
+
+    @property
+    def model_conf(self):
+        return self._model_conf
 
     def load_yaml(self, path):
         print("load yaml file {} ... ".format(path))
@@ -39,6 +48,7 @@ def _parse_args():
     parser = argparse.ArgumentParser('Simplify Model')
     parser.add_argument('--data_input', type=str, default='data/model/random_data.csv')
     parser.add_argument('--schema_path', type=str, default='config/schema.yaml')
+    parser.add_argument('--model_path', type=str, default='config/models.yaml')
     parser.add_argument('--task_type', type=str, default='binary', choices=['binary', 'regression'])
     parser.add_argument('--model_type', type=str, default='decision_tree', choices=['psm', 'decision_tree'])
     parser.add_argument('--balanced', type=bool, default=False,

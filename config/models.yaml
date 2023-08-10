@@ -1,0 +1,4 @@
+decision_tree:
+  criterion: "entropy"
+  max_depth: 4
+  min_samples_split: 1000
