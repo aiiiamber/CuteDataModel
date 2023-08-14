@@ -23,6 +23,10 @@ class Config(object):
         return self.args.balanced
 
     @property
+    def task_type(self):
+        return self.args.task_type
+
+    @property
     def model_conf(self):
         return self._model_conf
 

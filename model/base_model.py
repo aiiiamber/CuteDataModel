@@ -35,4 +35,3 @@ class ModelBuilder:
         if conf.model_type == 'decision_tree':
             model = DecisionTree(conf, dataset)
             model.build()
-            model.fit()

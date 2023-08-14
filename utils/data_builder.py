@@ -57,4 +57,8 @@ def preprocessing_data(conf):
         dataset = pd.concat([positive, negative])
         dataset.sample(frac=1).reset_index(drop=True)  # shuffle
 
+    rawdata_file = './data/middle/middle_result.csv'
+    print('writing middle process data {}...'.format(rawdata_file))
+    dataset.to_csv(rawdata_file, index=False)
+
     return dataset
