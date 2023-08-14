@@ -24,6 +24,7 @@ class DecisionTree(BaseModel):
 
     def fit(self):
         self._model.fit(self.x_data, self.y_data)
+        self.print_evaluation_result()
 
     def predict(self, test_data):
         y_pred = self._model.predict(test_data)
