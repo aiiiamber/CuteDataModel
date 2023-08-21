@@ -5,7 +5,7 @@ from model.base_model import BaseModel
 from psmpy import PsmPy
 
 
-class DecisionTree(BaseModel):
+class PropensityScoreMatching(BaseModel):
 
     def __int__(self, conf, dataset):
         super().__int__(conf=conf, dataset=dataset)

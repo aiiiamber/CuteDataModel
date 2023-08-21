@@ -30,7 +30,7 @@ class DecisionTree(BaseModel):
         y_pred = self._model.predict(test_data)
         return y_pred
 
-    def print_evaluation_result(self):
+    def evaluate(self):
         fc = self._model.feature_importances_
         print("feature importance >> \n")
         for fn, fc in zip(self._conf.fc_columns, fc):
