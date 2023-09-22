@@ -2,6 +2,7 @@
 # @Author: xiaolizhang
 
 from model.base_model import BaseModel
+
 from sklearn import tree
 from sklearn.metrics import classification_report
 
