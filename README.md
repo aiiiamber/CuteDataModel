@@ -1,2 +1,2 @@
-# CuteDataModel
-simplify model tool for analysis
+# Gravity
+aim to balabala
