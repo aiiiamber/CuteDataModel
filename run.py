@@ -4,7 +4,7 @@
 import yaml
 import argparse
 
-from model.base_model import ModelBuilder
+from model.builder import ModelBuilder
 from utils.data_builder import preprocessing_data
 from utils.config import Config
 
@@ -23,7 +23,7 @@ def run():
 
     # build dataset
     dataset = preprocessing_data(conf=conf)
-    print_data_log_info()
+    print_data_log_info(conf, dataset)
 
     # build model
     model_builder = ModelBuilder()
