@@ -15,6 +15,6 @@ class ModelBuilder:
             model = DecisionTree(conf, fc, dataset)
             model.build()
         elif conf.model_type == 'psm':
-            model = PropensityScoreMatching(conf, dataset)
+            model = PropensityScoreMatching(conf, fc, dataset)
             model.build()
         return model
