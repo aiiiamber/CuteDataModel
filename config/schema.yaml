@@ -4,8 +4,8 @@ is_sab_stable_valid: unused
 retention_status: label # label column
 is_promote: deep
 is_aa_promote: deep
-gender_category: deep
-age_category: deep
+gender_category: unused
+age_category: unused
 fans_num_all: deep
 anchor_type: deep
 live_game_days: deep
