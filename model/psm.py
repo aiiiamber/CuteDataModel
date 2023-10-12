@@ -33,7 +33,9 @@ class PropensityScoreMatching(BaseModel):
                             exclude=self.fc.category_columns)
 
     def fit(self):
+        # fit stage:
         self._model.logistic_ps(balance=False)  # todo: replace optim model
+        # matching stage:
         self._model.knn_matched(matcher='propensity_logit', replacement=True, caliper=None)
 
     def predict(self):
