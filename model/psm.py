@@ -7,8 +7,8 @@ from psmpy import PsmPy
 
 class PropensityScoreMatching(BaseModel):
 
-    def __int__(self, conf, dataset):
-        super().__int__(conf=conf, dataset=dataset)
+    def __init__(self, conf, dataset):
+        super().__init__(conf=conf, dataset=dataset)
 
     def build(self):
         self._model = PsmPy(self._dataset,

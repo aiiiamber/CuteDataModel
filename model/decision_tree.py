@@ -9,7 +9,7 @@ from sklearn.metrics import classification_report
 
 class DecisionTree(BaseModel):
 
-    def __int__(self, conf, dataset):
+    def __init__(self, conf, dataset):
         super().__int__(conf=conf, dataset=dataset)
         params = self._conf.get('decision_tree', {})
         self.criterion = params.get("criterion", "entropy")

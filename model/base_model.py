@@ -3,7 +3,7 @@
 
 
 class Core(object):
-    def __int__(self):
+    def __init__(self):
         self._model = None
 
     def build(self, *args, **kwargs):
@@ -18,7 +18,7 @@ class Core(object):
 
 class BaseModel(Core):
 
-    def __int__(self, conf, dataset):
+    def __init__(self, conf, dataset):
         self._conf = conf
         self._dataset = dataset
         self._model = None

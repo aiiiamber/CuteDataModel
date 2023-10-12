@@ -7,17 +7,11 @@ import argparse
 
 class Config(object):
 
-    def __int__(self):
-        self.args = _parse_args()
+    def __init__(self):
+        self._args = _parse_args()
         # load schema
-        self.schema = self.load_yaml(self.args.schema_path)
-        self._model_conf = self.load_yaml(self.args.model_path)
-        # parse feature info
-        self.column_names = list(self.schema.keys())
-        self.label_column, self.index_column = '', ''
-        self.fc_columns, self.category_columns, self.numerical_columns = [], [], []
-        self.parse_schema_basic_info()
-        self.has_category = 0 if len(self.category_columns) == 0 else 1
+        self.schema = self.load_yaml(self._args.schema_path)
+        self._model_conf = self.load_yaml(self._args.model_path)
 
     @property
     def args(self):
@@ -25,11 +19,11 @@ class Config(object):
 
     @property
     def balanced(self):
-        return self.args.balanced
+        return self._args.balanced
 
     @property
     def task_type(self):
-        return self.args.task_type
+        return self._args.task_type
 
     @property
     def model_conf(self):
@@ -38,19 +32,6 @@ class Config(object):
     def load_yaml(self, path):
         print("load yaml file {} ... ".format(path))
         return yaml.safe_load(open(path, 'r', encoding='utf8'))
-
-    def parse_schema_basic_info(self):
-        for key, value in self.schema.items():
-            if value not in ['unused', 'label', 'index']:
-                self.fc_columns.append(key)
-                if 'category' not in key:
-                    self.numerical_columns.append(key)
-                else:
-                    self.category_columns.append(key)
-            if value == 'label':
-                self.label_column = key
-            if value == 'index':
-                self.index_column = key
 
 
 def _parse_args():

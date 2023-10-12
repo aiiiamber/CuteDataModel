@@ -5,6 +5,7 @@ import yaml
 import argparse
 
 from model.builder import ModelBuilder
+from utils.feature_builder import ColumnArgs
 from utils.data_builder import preprocessing_data
 from utils.config import Config
 
@@ -21,8 +22,11 @@ def print_data_log_info(conf, dataset):
 def run():
     conf = Config()
 
+    # feature builder：generate feature column class info
+    fc = ColumnArgs(conf=conf)
+
     # build dataset
-    dataset = preprocessing_data(conf=conf)
+    dataset = preprocessing_data(conf=conf, fc=fc)
     print_data_log_info(conf, dataset)
 
     # build model

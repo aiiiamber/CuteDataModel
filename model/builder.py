@@ -7,7 +7,7 @@ from model.psm import PropensityScoreMatching
 
 class ModelBuilder:
 
-    def __int__(self):
+    def __init__(self):
         pass
 
     def __call__(self, conf, dataset):

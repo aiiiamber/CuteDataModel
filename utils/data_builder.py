@@ -16,7 +16,7 @@ def dict_to_yaml(map_dict):
     return content
 
 
-def preprocessing_data(conf):
+def preprocessing_data(conf, fc):
     data = []
     # iterable load data
     for filename in conf.args.data_input.split(","):
@@ -24,18 +24,18 @@ def preprocessing_data(conf):
         lines = f.readlines()
         for i, l in enumerate(lines):
             line_info = l.strip('\n').replace('"', '').split(',')
-            if len(line_info) == len(conf.column_names):
+            if len(line_info) == len(fc.column_names):
                 data.append(line_info)
-    dataset = pd.DataFrame(np.array(data), columns=conf.column_names)
+    dataset = pd.DataFrame(np.array(data), columns=fc.column_names)
 
     # numerical column
-    num_columns = conf.numerical_columns + [conf.label_column]
+    num_columns = fc.numerical_columns + [fc.label_column]
     dataset[num_columns] = dataset[num_columns].astype('float32')
 
     # generate category mapping info
-    if conf.has_category:
+    if fc.has_category:
         category_map = dict()
-        for col in conf.category_columns:
+        for col in fc.category_columns:
             print("process category column: {}".format(col))
             unique_keys = sorted(dataset[col].unique())
             key_2_value = dict(zip(unique_keys, list(range(len(unique_keys)))))
@@ -48,8 +48,8 @@ def preprocessing_data(conf):
 
     # balance positive and negative sample number
     if conf.balanced:
-        positive = dataset[dataset[conf.label_column] == 1]
-        negative = dataset[dataset[conf.label_column] == 0]
+        positive = dataset[dataset[fc.label_column] == 1]
+        negative = dataset[dataset[fc.label_column] == 0]
         if positive.shape[0] > negative.shape[0]:
             positive = positive.sample(n=negative.shape[0])
         else:
