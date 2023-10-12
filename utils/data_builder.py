@@ -60,7 +60,7 @@ def preprocessing_data(conf, fc):
 
     rawdata_file = './data/middle/middle_result.csv'
     os.system('mkdir ./data/middle')
-    os.system('ls -l ./data')
+    os.system('ls -l -r ./data')
     print('writing middle process data {}...'.format(rawdata_file))
     dataset.to_csv(rawdata_file, index=False)
 

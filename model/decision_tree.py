@@ -1,6 +1,8 @@
 # -*-coding:utf-8 -*-
 # @Author: xiaolizhang
 
+import numpy as np
+
 from model.base_model import BaseModel
 
 from sklearn import tree
@@ -33,11 +35,13 @@ class DecisionTree(BaseModel):
         return y_pred
 
     def evaluate(self):
-        fc = self._model.feature_importances_
-        print("feature importance >> \n")
-        for fn, fc in zip(self.fc.fc_columns, fc):
+        feature_importance = sorted(zip(self.fc.fc_columns, self._model.feature_importances_),
+                                    key=lambda x: x[1],
+                                    reverse=True)
+        print("[Info] Top5 important features >>")
+        for fn, fc in feature_importance[:5]:
             if fc > 0:
-                print('feature name: {}, feature importance: {}'.format(fn, fc))
-        print("classification report >> \n")
+                print('feature name: {fn}, feature importance: {fc:.4f}'.format(fn=fn, fc=fc))
+        print("[Info] Classification report >> \n")
         y_pred = self._model.predict(self.x_data)
-        print(classification_report(self.y_data, y_pred, target_names=[0, 1]))
+        print(classification_report(self.y_data, y_pred))

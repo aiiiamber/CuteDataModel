@@ -1,7 +1,7 @@
 author_id: index
 table_status: unused
 is_sab_stable_valid: unused
-retention_status: label
+retention_status: label # label column
 is_promote: deep
 is_aa_promote: deep
 gender_category: deep

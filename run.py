@@ -37,7 +37,8 @@ def run():
     # train model
     model.fit()
 
-    # todo: model evaluation
+    # evaluate model
+    model.evaluate()
 
 
 if __name__ == '__main__':
