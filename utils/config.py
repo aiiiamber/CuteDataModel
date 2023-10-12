@@ -6,6 +6,7 @@ import argparse
 
 
 class Config(object):
+
     def __int__(self):
         self.args = _parse_args()
         # load schema
@@ -17,6 +18,10 @@ class Config(object):
         self.fc_columns, self.category_columns, self.numerical_columns = [], [], []
         self.parse_schema_basic_info()
         self.has_category = 0 if len(self.category_columns) == 0 else 1
+
+    @property
+    def args(self):
+        return _parse_args()
 
     @property
     def balanced(self):
@@ -50,7 +55,7 @@ class Config(object):
 
 def _parse_args():
     parser = argparse.ArgumentParser('Simplify Model')
-    parser.add_argument('--data_input', type=str, default='data/model/random_data.csv')
+    parser.add_argument('--data_input', type=str, default='data/demo.csv')
     parser.add_argument('--schema_path', type=str, default='config/schema.yaml')
     parser.add_argument('--model_path', type=str, default='config/models.yaml')
     parser.add_argument('--task_type', type=str, default='binary', choices=['binary', 'regression'])
