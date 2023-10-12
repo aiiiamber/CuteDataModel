@@ -14,9 +14,10 @@ def print_data_log_info(conf, fc, dataset):
     sample_nums = dataset.shape[0]
     label_value = dataset[fc.label_column].sum()
     if conf.task_type == 'binary':
-        print('Label {} distribution >>'.format(fc.label_column))
-        print('positive: {p_val:.2%}, negative: {n_val:.2%}'.format(p_val=label_value / sample_nums,
-                                                                    n_val=1 - label_value / sample_nums))
+        print('[Info] Label {} distribution >>'.format(fc.label_column))
+        print('     positive label: {p_val:.2%}, \n'
+              '     negative label: {n_val:.2%}'.format(p_val=label_value / sample_nums,
+                                                        n_val=1 - label_value / sample_nums))
 
 
 def run():
@@ -27,11 +28,11 @@ def run():
 
     # build dataset
     dataset = preprocessing_data(conf=conf, fc=fc)
-    print_data_log_info(conf, dataset)
+    print_data_log_info(conf, fc, dataset)
 
     # build model
     model_builder = ModelBuilder()
-    model = model_builder(conf=conf, dataset=dataset)
+    model = model_builder(conf=conf, fc=fc, dataset=dataset)
 
     # train model
     model.fit()

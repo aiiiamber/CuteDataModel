@@ -9,14 +9,15 @@ from sklearn.metrics import classification_report
 
 class DecisionTree(BaseModel):
 
-    def __init__(self, conf, dataset):
-        super().__int__(conf=conf, dataset=dataset)
-        params = self._conf.get('decision_tree', {})
+    def __init__(self, conf, fc, dataset):
+        super().__init__(conf=conf, dataset=dataset)
+        params = self._conf.model_conf.get('decision_tree', {})
+        self.fc = fc
         self.criterion = params.get("criterion", "entropy")
         self.max_depth = params.get("max_depth", 4)
         self.min_samples_split = params.get("min_samples_split", 1000)
-        self.x_data = self._dataset[self._conf.fc_columns]
-        self.y_data = self._dataset[[self._conf.label_column]]
+        self.x_data = self._dataset[self.fc.fc_columns]
+        self.y_data = self._dataset[[self.fc.label_column]]
 
     def build(self):
         self._model = tree.DecisionTreeClassifier(criterion=self.criterion,
@@ -25,7 +26,7 @@ class DecisionTree(BaseModel):
 
     def fit(self):
         self._model.fit(self.x_data, self.y_data)
-        self.print_evaluation_result()
+        # self.print_evaluation_result()
 
     def predict(self, test_data):
         y_pred = self._model.predict(test_data)
@@ -34,7 +35,7 @@ class DecisionTree(BaseModel):
     def evaluate(self):
         fc = self._model.feature_importances_
         print("feature importance >> \n")
-        for fn, fc in zip(self._conf.fc_columns, fc):
+        for fn, fc in zip(self.fc.fc_columns, fc):
             if fc > 0:
                 print('feature name: {}, feature importance: {}'.format(fn, fc))
         print("classification report >> \n")

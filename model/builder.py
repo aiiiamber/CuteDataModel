@@ -10,10 +10,11 @@ class ModelBuilder:
     def __init__(self):
         pass
 
-    def __call__(self, conf, dataset):
+    def __call__(self, conf, fc, dataset):
         if conf.model_type == 'decision_tree':
-            model = DecisionTree(conf, dataset)
+            model = DecisionTree(conf, fc, dataset)
             model.build()
         elif conf.model_type == 'psm':
             model = PropensityScoreMatching(conf, dataset)
             model.build()
+        return model

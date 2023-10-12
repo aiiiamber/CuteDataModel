@@ -26,6 +26,10 @@ class Config(object):
         return self._args.task_type
 
     @property
+    def model_type(self):
+        return self._args.model_type
+
+    @property
     def model_conf(self):
         return self._model_conf
 
