@@ -1,10 +1,16 @@
+feature_name：gender_category
+     ：0
+    female：1
+    male：2
+    unknown：3
+
 feature_name：age_category
-    -18：0
-    18-23：1
-    24-30：2
-    31-40：3
-    41-50：4
-    50-：5
-    unknown：6
-    unkown：7
+     ：0
+    -18：1
+    18-23：2
+    24-30：3
+    31-40：4
+    41-50：5
+    50-：6
+    unknown：7
 

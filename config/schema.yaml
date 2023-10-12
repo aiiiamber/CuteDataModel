@@ -8,7 +8,6 @@ gender_category: deep
 age_category: deep
 fans_num_all: deep
 anchor_type: deep
-live_days: unused
 live_game_days: deep
 acu: deep
 live_minute_cnt_1d: deep
@@ -32,5 +31,3 @@ live_real_online_watch_ucnt_1mi: deep
 live_fake_online_watch_ucnt_1mi: deep
 live_popular_online_watch_ucnt_1mi: deep
 live_total_online_watch_ucnt_1mi: deep
-#game_live_gift_income_amount_1d: deep
-#promote_anchor_pay_amount_1d: deep

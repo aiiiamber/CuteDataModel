@@ -1,5 +1,6 @@
 # -*-coding:utf-8 -*-
 # @Author: xiaolizhang
+import os
 
 import numpy as np
 import pandas as pd
@@ -58,6 +59,8 @@ def preprocessing_data(conf, fc):
         dataset.sample(frac=1).reset_index(drop=True)  # shuffle
 
     rawdata_file = './data/middle/middle_result.csv'
+    os.system('mkdir ./data/middle')
+    os.system('ls -l ./data')
     print('writing middle process data {}...'.format(rawdata_file))
     dataset.to_csv(rawdata_file, index=False)
 
