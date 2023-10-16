@@ -5,6 +5,7 @@ from model.base_model import BaseModel
 
 from psmpy import PsmPy
 from sklearn.metrics import classification_report
+from utils.metrics import cal_auc
 
 import lightgbm as lgb
 
@@ -55,5 +56,4 @@ class PropensityScoreMatching(BaseModel):
         y_data = self._model.predicted_data[self.fc.label_column]
         y_pred = self._model.predicted_data['propensity_score'].apply(lambda x: 1 if x > 0.5 else 0)
         print(classification_report(y_data, y_pred))
-
-
+        print("metric AUC: {auc:.4f}".format(auc=cal_auc(y_data, y_pred)))
