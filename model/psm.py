@@ -6,6 +6,8 @@ from model.base_model import BaseModel
 from psmpy import PsmPy
 from sklearn.metrics import classification_report
 
+import lightgbm as lgb
+
 
 class OptimPsmPy(PsmPy):
     """
