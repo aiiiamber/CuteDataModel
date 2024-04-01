@@ -40,7 +40,7 @@ class Config(object):
 
 def _parse_args():
     parser = argparse.ArgumentParser('Simplify Model')
-    parser.add_argument('--data_input', type=str, default='data/demo.csv')
+    parser.add_argument('--data_input', type=str, default='data/test.csv')
     parser.add_argument('--schema_path', type=str, default='config/schema.yaml')
     parser.add_argument('--model_path', type=str, default='config/models.yaml')
     parser.add_argument('--task_type', type=str, default='binary', choices=['binary', 'regression'])
