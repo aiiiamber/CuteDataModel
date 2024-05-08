@@ -27,22 +27,27 @@ class OptimPsmPy(PsmPy):
     Support multiple fit model for psm
     """
 
-    def __init__(self, data, treatment, indx, exclude):
-        super(OptimPsmPy, self).__init__(data, treatment, indx, exclude)
+    def __init__(self, data, treatment, indx, exclude, raw_data):
+        super(OptimPsmPy, self).__init__(data, treatment, indx, exclude, raw_data)
         self.category_columns = exclude
+        self.model = None
+        self.raw_data = raw_data
 
     def lightgbm_ps(self):
         # preprocessing data
-        columns = self.data.columns.tolist()
+        columns = self.raw_data.columns.tolist()
+        columns.remove(self.treatment)
+        columns.remove(self.indx)
+        # print('feature columns >>\n{}'.format(',\n'.join(columns)))
         # columns.remove(self.exclude)
 
-        idx, x, y = self.data[self.indx], self.data[columns], self.data[self.treatment]
+        idx, x, y = self.raw_data[self.indx], self.raw_data[columns], self.raw_data[self.treatment]
         x_train, x_test, y_train, y_test = train_test_split(x, y)
         train_data = lgb.Dataset(x_train, y_train, categorical_feature=self.category_columns)
         val_data = lgb.Dataset(x_test, y_test, categorical_feature=self.category_columns)
         # build model
         params = {
-            'num_leaves': 50,
+            'num_leaves': 32,
             'max_depth': 8,
             'min_data_in_leaf': 20,
             'min_child_samples': 20,
@@ -51,7 +56,7 @@ class OptimPsmPy(PsmPy):
             'boosting': 'gbdt',
             'feature_fraction': 0.8,
             'bagging_freq': 0,
-            'bagging_fraction': 0.6,
+            'bagging_fraction': 0.8,
             'bagging_seed': 23,
             'metric': 'auc',
             'lambda_l1': 0.2,
@@ -60,8 +65,9 @@ class OptimPsmPy(PsmPy):
         }
         clf = lgb.train(params=params,
                         train_set=train_data,
-                        num_boost_round=1,
+                        num_boost_round=50,
                         valid_sets=[train_data, val_data])
+        self.model = clf
 
         # predict and merge
         self.predicted_data = x
@@ -77,9 +83,9 @@ class PropensityScoreMatching:
     def __init__(self, label_column, index_column, fc_columns, dataset, category_fc_columns=[], model_type='logit'):
         self.index_column = index_column
         self.label_column = label_column
-        self.fc_column = fc_columns
-        used_columns = fc_columns + [index_column, label_column]
+        self.fc_columns = fc_columns
         self.category_columns = category_fc_columns
+        used_columns = fc_columns + [index_column, label_column]
         self.data = dataset[used_columns]
         self.model_type = model_type
 
@@ -87,15 +93,19 @@ class PropensityScoreMatching:
         self._model = OptimPsmPy(data=self.data,
                                  treatment=self.label_column,
                                  indx=self.index_column,
-                                 exclude=[])
+                                 exclude=self.category_columns,
+                                 raw_data=self.data)
 
     def fit(self):
         # fit stage:
         if self.model_type == 'logit':
-            self._model.logistic_ps(balance=False)  # todo: replace optim model
+            print('Logistic Regression model is training ... ')
+            self._model.logistic_ps(balance=False)
         elif self.model_type == 'lgb':
+            print('LightGBM model is training ... ')
             self._model.lightgbm_ps()
         # matching stage:
+        print('KNN matching')
         self._model.knn_matched(matcher='propensity_logit', replacement=True, caliper=None)
 
     def predict(self):
@@ -108,6 +118,14 @@ class PropensityScoreMatching:
         format_matched = df_matched.dropna()
         format_matched = format_matched[format_matched[self.index_column] != format_matched.matched_ID]
         return format_matched
+
+    def predict_propensity_score(self, predicted_data, saved_columns=[]):
+        model = self._model.model
+        predicted_data['propensity_score'] = model.predict(predicted_data[self.fc_columns])
+        predicted_data['binary_predicted_label'] = predicted_data['propensity_score'].apply(lambda x: 1 if x > 0.5
+        else 0)
+        default_saved_columns = [self.index_column, self.label_column, 'propensity_score', 'binary_predicted_label']
+        return predicted_data[default_saved_columns + saved_columns]
 
     def evaluate(self):
         y_data = self._model.predicted_data[self.label_column]
