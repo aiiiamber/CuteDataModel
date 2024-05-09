@@ -6,13 +6,15 @@ import yaml
 import math
 
 import pandas as pd
+
 pd.options.mode.chained_assignment = None
 import matplotlib
+
 matplotlib.use('TkAgg')
 import seaborn as sns
+
 sns.set(rc={'figure.figsize': (10, 8)}, font_scale=1.3)
 import matplotlib.pyplot as plt
-from scipy.stats import gaussian_kde
 
 from notebook.psm import PropensityScoreMatching
 
@@ -158,13 +160,16 @@ def plot_match(df, treatment, Title, save_name='propensity_match.png', save=Fals
     sns.set_style("white")
     # Make the histogram using a list of lists
     # Normalize the flights and assign colors and names
-    plt.hist([x1, x2], color=colors, label=names, density=True)
-    plt.plot(x1, density(xs))
+    plt.figure(figsize=(15, 6))
+    plt.hist([x1, x2], bins=20, color=colors, label=names, density=True)
+    sns.kdeplot(x1, color=colors[0], fill=True)
+    sns.kdeplot(x2, color=colors[1], fill=True)
     # Plot formatting
     plt.legend()
     plt.xlabel('propensity logit')
     plt.ylabel('density of users')
     plt.title(label=Title)
+    # plt.show()
     if save:
         plt.savefig(save_name, dpi=250)
         plt.pause(0)
@@ -294,9 +299,9 @@ if __name__ == '__main__':
     input = '../config/schema.yaml,../data/train.csv'
     # model config
     model_config = {
-            'model_type': 'lgb',
-            'num_boost_round': 100
-        }
+        'model_type': 'lgb',
+        'num_boost_round': 50
+    }
 
     # model training config
     main(input, model_config)
