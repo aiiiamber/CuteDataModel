@@ -8,19 +8,20 @@ import lightgbm as lgb
 from psmpy import PsmPy
 
 from sklearn.metrics import classification_report
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, log_loss
 from sklearn.model_selection import train_test_split
 
 
-def cal_auc(y_true, y_pred):
+def cal_metric(y_true, y_pred):
     y_true = np.array(y_true)
     y_pred = np.array(y_pred)
 
     y_true[y_true > 0] = 1
     y_true[y_true < 0] = 0
 
-    score = roc_auc_score(y_true, y_pred)
-    return score
+    auc = roc_auc_score(y_true, y_pred)
+    logloss = log_loss(y_true, y_pred)
+    return auc, logloss
 
 
 class OptimPsmPy(PsmPy):
@@ -149,7 +150,13 @@ class PropensityScoreMatching:
         return predicted_data[default_saved_columns + saved_columns]
 
     def evaluate(self):
-        y_data = self._model.evaluate_data[self.label_column]
-        y_pred = self._model.evaluate_data['propensity_score'].apply(lambda x: 1 if x > 0.5 else 0)
-        print(classification_report(y_data, y_pred))
-        print("metric AUC: {auc:.4f}".format(auc=cal_auc(y_data, y_pred)))
+        evaluate_data = self._model.predicted_data
+        if self.model_type == 'lgb':
+            evaluate_data = self._model.evaluate_data
+
+        y_data = evaluate_data[self.label_column]
+        y_pred = evaluate_data['propensity_score']
+        y_pred_binary = evaluate_data['propensity_score'].apply(lambda x: 1 if x > 0.5 else 0)
+        print(classification_report(y_data, y_pred_binary))
+        auc, logloss = cal_metric(y_data, y_pred)
+        print("metric AUC: {auc:.4f}, Logloss: {logloss:.4f}".format(auc=auc, logloss=logloss))

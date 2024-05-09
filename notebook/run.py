@@ -104,8 +104,9 @@ def generate_distribution(data, treatment_col, label_col, return_outcome=False):
     content += "outcome:{r:.2%}, treatment outcome: {r1:.2%}, untreatment outcome: {r2:.2%}".format(r=outcome,
                                                                                                     r1=t_outcome,
                                                                                                     r2=ut_outcome)
+    res = [positive_cnt / sample_cnt, outcome, t_outcome]
     if return_outcome:
-        return content, outcome, t_outcome
+        return content, res
     else:
         return content
 
@@ -213,7 +214,11 @@ def main(input, model_config, dataset=None, offline=True):
     control_data = raw_data[raw_data[exp_col] == CONTROL_GROUP]
     print(">>>> Data distribution")
     print("Train data >> \n{}".format(generate_distribution(train_data, treatment_col, label_col)))
-    print("Control data >> \n{}".format(generate_distribution(control_data, treatment_col, label_col)))
+    control_before_context, control_before_res = generate_distribution(control_data,
+                                                                       treatment_col,
+                                                                       label_col,
+                                                                       return_outcome=True)
+    print("Control data >> \n{}".format(control_before_context))
 
     # pearson correlation：only numerical feature
     corr_matrix = abs(train_data[[treatment_col] + config['numerical_fc']].corr())
@@ -283,15 +288,19 @@ def main(input, model_config, dataset=None, offline=True):
 
     # treatment effect
     control_data = model.predict_propensity_score(control_data, saved_columns=[label_col] + used_feat)
-    exp_content, exp_outcome, exp_t_outcome = generate_distribution(train_data, treatment_col, label_col,
-                                                                    return_outcome=True)
-    control_content, control_outcome, control_t_outcome = generate_distribution(control_data, 'binary_predicted_label',
-                                                                                label_col,
-                                                                                return_outcome=True)
+    exp_content, exp_res = generate_distribution(train_data, treatment_col, label_col, return_outcome=True)
+    control_content, control_res = generate_distribution(control_data,
+                                                         'binary_predicted_label',
+                                                         label_col,
+                                                         return_outcome=True)
     print("Exp data >> \n{}".format(exp_content))
     print("Control data >> \n{}".format(control_content))
-    print('Treatment Effect: ATE: {ae: .4%}, ATT: {at:.4%}'.format(ae=exp_outcome / control_outcome - 1,
-                                                                   at=exp_t_outcome / control_t_outcome - 1))
+    ate, att = exp_res[1] / control_res[1] - 1, exp_res[2] / control_res[2] - 1
+    print('Treatment Effect: ATE: {ae: .4%}, ATT: {at:.4%}'.format(ae=ate, at=att))
+    att_before = control_before_res[2] / exp_res[2] - 1
+    res = [ate, att, exp_res[0], control_before_res[0], exp_res[0], control_res[0],
+           exp_res[2], control_before_res[2], att_before, exp_res[2], control_res[2]]
+    return res
 
 
 if __name__ == '__main__':
@@ -300,8 +309,9 @@ if __name__ == '__main__':
     # model config
     model_config = {
         'model_type': 'lgb',
-        'num_boost_round': 50
+        'num_boost_round': 100
     }
 
     # model training config
-    main(input, model_config)
+    res = main(input, model_config)
+    print(res)
