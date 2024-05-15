@@ -221,6 +221,7 @@ def main(input, model_config, dataset=None, offline=True):
     print("Control data >> \n{}".format(control_before_context))
 
     # pearson correlation：only numerical feature
+    # train_data = train_data[train_data.is_treatment == 1]
     corr_matrix = abs(train_data[[treatment_col] + config['numerical_fc']].corr())
     feat_corr = abs(corr_matrix[treatment_col]).sort_values(ascending=False)
 
@@ -251,6 +252,7 @@ def main(input, model_config, dataset=None, offline=True):
             cols = corr_matrix[(corr_matrix[k] > 0.6) & (corr_matrix[k] < 1)][k].index.to_list()
             filter_col.extend(cols)
     print("used feature number: {}".format(len(used_feat)))
+    print('feature: {}'.format("\",\"".join(used_feat)))
 
     # preprocessing data
     features = parse_category_feat(train_data, config['category_fc'])
@@ -300,7 +302,15 @@ def main(input, model_config, dataset=None, offline=True):
     att_before = control_before_res[2] / exp_res[2] - 1
     res = [ate, att, exp_res[0], control_before_res[0], exp_res[0], control_res[0],
            exp_res[2], control_before_res[2], att_before, exp_res[2], control_res[2]]
-    return res
+
+    saved_columns = used_feat + [treatment_col, exp_col, label_col, config['index']]
+    matched_pair = df_matched[['user_id', 'matched_ID']]
+
+    matched_res = pd.merge(matched_pair, raw_data[saved_columns], how='inner',
+                           on='user_id')
+    matched_res = pd.merge(matched_res, raw_data[saved_columns], how='inner',
+                           left_on='matched_ID', right_on='user_id', suffixes=('', '_matched'))
+    return res, matched_res
 
 
 if __name__ == '__main__':
@@ -308,10 +318,12 @@ if __name__ == '__main__':
     input = '../config/schema.yaml,../data/train.csv'
     # model config
     model_config = {
-        'model_type': 'lgb',
-        'num_boost_round': 100
+        'model_type': 'lgb',  # lgb, logit
+        'num_boost_round': 50,  # only need under lgb model_type
+        'match_type': 'stratification_match',  # stratification_match, knn
+        'stratification_feature': 'recent_30d_active_cnt'
     }
 
     # model training config
-    res = main(input, model_config)
+    res, matched_res = main(input, model_config)
     print(res)

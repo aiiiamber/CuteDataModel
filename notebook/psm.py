@@ -10,6 +10,7 @@ from psmpy import PsmPy
 from sklearn.metrics import classification_report
 from sklearn.metrics import roc_auc_score, log_loss
 from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier, NearestNeighbors
 
 
 def cal_metric(y_true, y_pred):
@@ -37,7 +38,7 @@ class OptimPsmPy(PsmPy):
         self.control_data = control_data
         self.control_data[treatment] = 0
 
-    def lightgbm_ps(self, num_boost_round=100):
+    def lightgbm_ps(self, num_boost_round=50):
         # preprocessing data
         columns = self.train_data.columns.tolist()
         columns.remove(self.treatment)
@@ -76,6 +77,15 @@ class OptimPsmPy(PsmPy):
                         valid_sets=[train_data, val_data])
         self.model = clf
 
+        # print feature importance
+        importance = clf.feature_importance(importance_type='split')
+        df = pd.DataFrame(
+            {'feature_name': columns,
+             'importance': importance}
+        )
+        df.sort_values('importance', ascending=False, inplace=True)
+        print(df.head())
+
         # evaluate data
         self.evaluate_data = x
         self.evaluate_data['propensity_score'] = clf.predict(x)
@@ -85,15 +95,57 @@ class OptimPsmPy(PsmPy):
         self.evaluate_data[self.treatment] = y
 
         treatment_data = self.train_data[self.train_data[self.treatment] == 1]
-        idx_treatment, x_treatment, y_treatment = treatment_data[self.indx], treatment_data[columns], treatment_data[self.treatment]
-        idx_control, x_control, y_control = self.control_data[self.indx], self.control_data[columns], self.control_data[self.treatment]
+        idx_treatment, x_treatment, y_treatment = treatment_data[self.indx], treatment_data[columns], treatment_data[
+            self.treatment]
+        idx_control, x_control, y_control = self.control_data[self.indx], self.control_data[columns], self.control_data[
+            self.treatment]
         # predict and merge
         self.predicted_data = pd.concat([x_treatment, x_control], ignore_index=True)
-        self.predicted_data['propensity_score'] = clf.predict(self.predicted_data )
+        self.predicted_data['propensity_score'] = clf.predict(self.predicted_data)
         self.predicted_data['propensity_logit'] = self.predicted_data['propensity_score'].apply(
             lambda p: np.log(p / (1 - p)) if p < 0.9999 else np.log(p / (0.00001)))
         self.predicted_data[self.indx] = pd.concat([idx_treatment, idx_control], ignore_index=True)
         self.predicted_data[self.treatment] = pd.concat([y_treatment, y_control], ignore_index=True)
+
+    def stratification_matching(self, stratification_feature, matcher='propensity_score'):
+        predicted_data = self.predicted_data
+        before_cnt = predicted_data[predicted_data[self.treatment] == 1].shape[0]
+
+        knn = NearestNeighbors(n_neighbors=20, p=2)
+        knn.fit(predicted_data[[matcher]])
+
+        distances, indexes = knn.kneighbors(predicted_data[[matcher]], n_neighbors=20)
+        used_columns = [self.indx, self.treatment, stratification_feature, matcher]
+
+        res = []
+        for distance, match_result in zip(distances, indexes):
+            match_user = predicted_data.loc[match_result[0], used_columns]
+            s_value = match_user[stratification_feature]
+            matched_users = predicted_data.loc[match_result[1:], used_columns]
+            matched_users['m_distance'] = distance[1:]
+            # if treatment: matching
+            if match_user[self.treatment] == 1:
+                matched_users = matched_users[matched_users[self.treatment] == 0]
+                if matched_users.shape[0] > 0:
+                    # todo: 选择分层特征距离最近的样本
+                    matched_users['s_distance'] = matched_users[stratification_feature].apply(lambda x: abs(x -
+                                                                                                            s_value))
+
+                    matched_users.sort_values(['s_distance', 'm_distance'], inplace=True)
+                    matched_users.reset_index(inplace=True)
+                    # 一行匹配结果
+                    pair_result = match_user.values.tolist() + matched_users.loc[0, used_columns].values.tolist()
+                    res.append(pair_result)
+            # else：continue
+            else:
+                continue
+
+        res_columns = used_columns + ['matched_ID'] + list(map(lambda x: x + "_matched", used_columns[1:]))
+        user_pairs = pd.DataFrame(res, columns=res_columns)
+        # matching result
+        print('Before matching treatment user count:{}, after matching user count: {}'.format(before_cnt,
+                                                                                              user_pairs.shape[0]))
+        self.df_matched = user_pairs
 
 
 class PropensityScoreMatching:
@@ -109,6 +161,7 @@ class PropensityScoreMatching:
         self.control_data = control_data[used_columns]
         self.model_config = model_config
         self.model_type = model_config['model_type']
+        self.match_type = model_config['match_type']
 
     def build(self):
         self._model = OptimPsmPy(data=self.data,
@@ -119,16 +172,24 @@ class PropensityScoreMatching:
                                  control_data=self.control_data)
 
     def fit(self):
-        # fit stage:
+        # Fitting stage:
         if self.model_type == 'logit':
             print('Logistic Regression model is training ... ')
             self._model.logistic_ps(balance=False)
         elif self.model_type == 'lgb':
             print('LightGBM model is training ... ')
             self._model.lightgbm_ps(num_boost_round=self.model_config['num_boost_round'])
-        # matching stage:
-        print('KNN matching')
-        self._model.knn_matched(matcher='propensity_logit', replacement=True, caliper=None)
+        else:
+            raise ValueError('Only support logit and lgb model.')
+        # Matching stage:
+        if self.match_type == 'knn':
+            print('KNN matching ...')
+            self._model.knn_matched(matcher='propensity_score', replacement=False, caliper=None)
+        elif self.match_type == 'stratification_match':
+            print('Stratification matching ...')
+            self._model.stratification_matching(stratification_feature=self.model_config['stratification_feature'])
+        else:
+            raise ValueError('Only support knn and stratification match, {} is missing.'.format(self.mathcing_type))
 
     def predict(self):
         """ Matching ID
