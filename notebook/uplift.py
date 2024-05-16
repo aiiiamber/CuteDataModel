@@ -46,8 +46,7 @@ def parse_schema(schema):
             fc_columns, numerical_fc_columns, category_fc_columns = [], [], []
             if 'fc' in config:
                 fc_columns.extend(config['fc'])
-            if 'category' not in key:
-                fc_columns.append(key)
+            fc_columns.append(key)
             config['fc'] = fc_columns
 
             if 'category' not in key:
@@ -68,10 +67,10 @@ def run_model(train_data, feature_columns, category_columns, label, num_boost_ro
     print('split training data ...')
     x, y = train_data[feature_columns], train_data[label]
     x_train, x_test, y_train, y_test = train_test_split(x, y)
-    train_data = lgb.Dataset(x_train, y_train)
-    val_data = lgb.Dataset(x_test, y_test)
-    # train_data = lgb.Dataset(x_train, y_train, categorical_feature=category_columns)
-    # val_data = lgb.Dataset(x_test, y_test, categorical_feature=category_columns)
+    # train_data = lgb.Dataset(x_train, y_train)
+    # val_data = lgb.Dataset(x_test, y_test)
+    train_data = lgb.Dataset(x_train, y_train, categorical_feature=category_columns)
+    val_data = lgb.Dataset(x_test, y_test, categorical_feature=category_columns)
 
     # build model
     print('training model ...')
@@ -141,16 +140,17 @@ def main(input, dataset=None, offline=True):
     treatment_t_predict = treatment_model.predict(treatment_data[config['fc']])
     untreatment_t_predict = control_model.predict(treatment_data[config['fc']])
     treatment_data['uplift'] = list(treatment_t_predict - untreatment_t_predict)
+    print(treatment_data[config['numerical_fc'] + ['uplift']].corr()['uplift'])
 
-    treatment_c_predict = treatment_model.predict(control_data[config['fc']])
-    untreatment_c_predict = control_model.predict(control_data[config['fc']])
-    control_data['uplift'] = list(treatment_c_predict - untreatment_c_predict)
-
-    bins = np.linspace(treatment_data.uplift.min(), treatment_data.uplift.max(), 10)
-    treatment_data['grouped'] = pd.cut(treatment_data['uplift'], bins=bins)
-    res_t = treatment_data.groupby('grouped')[['uplift', 'is_login']].mean()
-    control_data['grouped'] = pd.cut(treatment_data['uplift'], bins=bins)
-    res_c = control_data.groupby('grouped')['is_login'].mean().to_dict()
+    # treatment_c_predict = treatment_model.predict(control_data[config['fc']])
+    # untreatment_c_predict = control_model.predict(control_data[config['fc']])
+    # control_data['uplift'] = list(treatment_c_predict - untreatment_c_predict)
+    #
+    # bins = np.linspace(treatment_data.uplift.min(), treatment_data.uplift.max(), 10)
+    # treatment_data['grouped'] = pd.cut(treatment_data['uplift'], bins=bins)
+    # res_t = treatment_data.groupby('grouped')[['uplift', 'is_login']].mean()
+    # control_data['grouped'] = pd.cut(treatment_data['uplift'], bins=bins)
+    # res_c = control_data.groupby('grouped')['is_login'].mean().to_dict()
 
 
 

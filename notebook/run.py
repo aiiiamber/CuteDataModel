@@ -17,78 +17,10 @@ sns.set(rc={'figure.figsize': (10, 8)}, font_scale=1.3)
 import matplotlib.pyplot as plt
 
 from notebook.psm import PropensityScoreMatching
+from notebook.tools import preprocessing_data, parse_schema, parse_category_feat
 
 CONTROL_GROUP = 'control'
 EXP_GROUP = 'exp_content'
-
-
-def get_index_from_list(lst, ele, default_value=None):
-    """Get the index of an element in a list; return None if does not exist.
-
-    :param lst: a list.
-    :param ele: an element whose index is the target.
-    :param default_value: if element not in index, return default value
-    :return: an int indicates the index of the `ele` in `lst`; returns None if does not exist.
-    """
-
-    if not isinstance(lst, list):
-        return None
-
-    try:
-        return lst.index(ele)
-    except ValueError:
-        return default_value
-
-
-def parse_schema(schema):
-    """
-    Parse config
-    :param schema: dictionary
-    :return:
-    """
-    config = dict()
-    for key, value in schema.items():
-        # outcome
-        if value == 'label':
-            config['label'] = key
-        # uid
-        if value == 'index':
-            config['index'] = key
-        # experiment group
-        if value == 'exp':
-            config['exp'] = key
-        # treatment label
-        if value == 'treatment':
-            config['treatment'] = key
-
-        # feature column
-        if value == 'used':
-            fc_columns, numerical_fc_columns, category_fc_columns = [], [], []
-            if 'fc' in config:
-                fc_columns.extend(config['fc'])
-            fc_columns.append(key)
-            config['fc'] = fc_columns
-
-            if 'category' not in key:
-                if 'numerical_fc' in config:
-                    numerical_fc_columns.extend(config['numerical_fc'])
-                numerical_fc_columns.append(key)
-                config['numerical_fc'] = numerical_fc_columns
-            else:
-                if 'category_fc' in config:
-                    category_fc_columns.extend(config['category_fc'])
-                category_fc_columns.append(key)
-                config['category_fc'] = category_fc_columns
-
-    return config
-
-
-def parse_category_feat(data, category_columns):
-    feature = dict()
-    # print(category_columns)
-    for col in category_columns:
-        feature[col] = data[col].unique().tolist()
-    return feature
 
 
 def generate_distribution(data, treatment_col, label_col, return_outcome=False):
@@ -145,7 +77,7 @@ def plot_effect_size(df_before, df_after, treatment, vars, save=False):
         sns_plot.figure.savefig(
             'effect_size.png', dpi=250, bbox_inches="tight")
     else:
-        pass
+        return effect_size
 
 
 def plot_match(df, treatment, Title, save_name='propensity_match.png', save=False):
@@ -175,14 +107,7 @@ def plot_match(df, treatment, Title, save_name='propensity_match.png', save=Fals
         plt.savefig(save_name, dpi=250)
         plt.pause(0)
     else:
-        pass
-
-
-def preprocessing_data(data, features):
-    # preprocessing category columns
-    for col, vocab in features.items():
-        data[col] = data[col].apply(lambda x: get_index_from_list(vocab, x, -1) + 1)
-    return data
+        return
 
 
 def main(input, model_config, dataset=None, offline=True):
@@ -279,14 +204,15 @@ def main(input, model_config, dataset=None, offline=True):
     df_before = pd.concat([df_treatment, df_before_control], ignore_index=True)
     df_after, df_matched = model.predict()
     pairs = df_matched.matched_ID.unique().tolist() + df_matched.user_id.unique().tolist()
-    plot_match(df_after, treatment_col, Title='Propensity Scores Before Matching',
-               save_name='propensity_match_before.png', save=True)
-    plot_match(df_after[df_after['user_id'].isin(pairs)], treatment_col, Title='Propensity Scores After Matching',
-               save_name='propensity_match_after.png', save=True)
-    plot_effect_size(df_before, df_after[df_after['user_id'].isin(pairs)],
-                     treatment=treatment_col,
-                     vars=used_feat,
-                     save=True)
+    # plot_match(df_after, treatment_col, Title='Propensity Scores Before Matching',
+    #            save_name='propensity_match_before.png', save=True)
+    # plot_match(df_after[df_after['user_id'].isin(pairs)], treatment_col, Title='Propensity Scores After Matching',
+    #            save_name='propensity_match_after.png', save=True)
+    effect_size = plot_effect_size(df_before, df_after[df_after['user_id'].isin(pairs)],
+                                   treatment=treatment_col,
+                                   vars=used_feat,
+                                   save=False)
+    print(effect_size[effect_size['Variable'] == model_config['stratification_feature']])
 
     # treatment effect
     control_data = model.predict_propensity_score(control_data, saved_columns=[label_col] + used_feat)
