@@ -5,6 +5,10 @@ import yaml
 import numpy as np
 import pandas as pd
 
+from causalml.dataset import make_uplift_classification
+from causalml.inference.tree import UpliftTreeClassifier, UpliftRandomForestClassifier
+from causalml.inference.tree import uplift_tree_string, uplift_tree_plot
+
 import lightgbm as lgb
 from sklearn.model_selection import train_test_split
 
@@ -14,94 +18,17 @@ matplotlib.use('TkAgg')
 import seaborn as sns
 
 sns.set(rc={'figure.figsize': (10, 8)}, font_scale=1.3)
-import matplotlib.pyplot as plt
+# from IPython.display import Image
+from notebook.tools import parse_schema, parse_category_feat, preprocessing_data
 
 CONTROL_GROUP = 'control'
 EXP_GROUP = 'exp_content'
 
 
-def parse_schema(schema):
-    """
-    Parse config
-    :param schema: dictionary
-    :return:
-    """
-    config = dict()
-    for key, value in schema.items():
-        # outcome
-        if value == 'label':
-            config['label'] = key
-        # uid
-        if value == 'index':
-            config['index'] = key
-        # experiment group
-        if value == 'exp':
-            config['exp'] = key
-        # treatment label
-        if value == 'treatment':
-            config['treatment'] = key
-
-        # feature column
-        if value == 'used':
-            fc_columns, numerical_fc_columns, category_fc_columns = [], [], []
-            if 'fc' in config:
-                fc_columns.extend(config['fc'])
-            fc_columns.append(key)
-            config['fc'] = fc_columns
-
-            if 'category' not in key:
-                if 'numerical_fc' in config:
-                    numerical_fc_columns.extend(config['numerical_fc'])
-                numerical_fc_columns.append(key)
-                config['numerical_fc'] = numerical_fc_columns
-            else:
-                if 'category_fc' in config:
-                    category_fc_columns.extend(config['category_fc'])
-                category_fc_columns.append(key)
-                config['category_fc'] = category_fc_columns
-
-    return config
-
-
-def run_model(train_data, feature_columns, category_columns, label, num_boost_round=100):
-    print('split training data ...')
-    x, y = train_data[feature_columns], train_data[label]
-    x_train, x_test, y_train, y_test = train_test_split(x, y)
-    # train_data = lgb.Dataset(x_train, y_train)
-    # val_data = lgb.Dataset(x_test, y_test)
-    train_data = lgb.Dataset(x_train, y_train, categorical_feature=category_columns)
-    val_data = lgb.Dataset(x_test, y_test, categorical_feature=category_columns)
-
-    # build model
-    print('training model ...')
-    params = {
-        'num_leaves': 32,
-        'max_depth': 8,
-        'min_data_in_leaf': 20,
-        'min_child_samples': 20,
-        'objective': 'binary',
-        'learning_rate': 0.1,
-        'boosting': 'gbdt',
-        'feature_fraction': 0.8,
-        'bagging_freq': 0,
-        'bagging_fraction': 0.8,
-        'bagging_seed': 23,
-        'metric': 'auc',
-        'lambda_l1': 0.2,
-        'nthread': 4,
-        'verbose': -1
-    }
-    clf = lgb.train(params=params,
-                    train_set=train_data,
-                    num_boost_round=num_boost_round,
-                    valid_sets=[train_data, val_data])
-    return clf
-
-
 def main(input, dataset=None, offline=True):
     file_path = input.split(",")
     if offline:
-        assert len(file_path) == 2, 'input file path should be 2'
+        assert len(file_path) == 3, 'input file path should be 2'
         schema_path, data_path = file_path[0], file_path[1]
     else:
         schema_path = file_path[0]
@@ -121,51 +48,32 @@ def main(input, dataset=None, offline=True):
     raw_data[config['index']] = raw_data[config['index']].astype(str)
     raw_data[config['numerical_fc']] = raw_data[config['numerical_fc']].apply(pd.to_numeric)
 
+    feat_names = config['numerical_fc']
     treatment_col, exp_col, label_col = config['treatment'], config['exp'], config['label']
-    # data distribution
-    treatment_data = raw_data[raw_data[exp_col] == EXP_GROUP]
-    control_data = raw_data[raw_data[exp_col] == CONTROL_GROUP]
+    df = raw_data[raw_data[exp_col].isin([CONTROL_GROUP, EXP_GROUP])]
 
-    treatment_model = run_model(treatment_data,
-                                feature_columns=config['fc'],
-                                category_columns=config['category_fc'],
-                                label=label_col,
-                                num_boost_round=100)
-    control_model = run_model(control_data,
-                              feature_columns=config['fc'],
-                              category_columns=config['category_fc'],
-                              label=label_col,
-                              num_boost_round=100)
+    # Split data to training and testing samples for model validation (next section)
+    df_train, df_test = train_test_split(df, test_size=0.2, random_state=111)
 
-    treatment_t_predict = treatment_model.predict(treatment_data[config['fc']])
-    untreatment_t_predict = control_model.predict(treatment_data[config['fc']])
-    treatment_data['uplift'] = list(treatment_t_predict - untreatment_t_predict)
-    print(treatment_data[config['numerical_fc'] + ['uplift']].corr()['uplift'])
+    # Train uplift tree
+    uplift_model = UpliftTreeClassifier(max_depth=4, min_samples_leaf=200, min_samples_treatment=50, n_reg=100,
+                                        evaluationFunction='KL', control_name='control')
 
-    # treatment_c_predict = treatment_model.predict(control_data[config['fc']])
-    # untreatment_c_predict = control_model.predict(control_data[config['fc']])
-    # control_data['uplift'] = list(treatment_c_predict - untreatment_c_predict)
-    #
-    # bins = np.linspace(treatment_data.uplift.min(), treatment_data.uplift.max(), 10)
-    # treatment_data['grouped'] = pd.cut(treatment_data['uplift'], bins=bins)
-    # res_t = treatment_data.groupby('grouped')[['uplift', 'is_login']].mean()
-    # control_data['grouped'] = pd.cut(treatment_data['uplift'], bins=bins)
-    # res_c = control_data.groupby('grouped')['is_login'].mean().to_dict()
+    uplift_model.fit(df_train[feat_names].values,
+                     treatment=df_train[exp_col].values,
+                     y=df_train[label_col].values)
 
+    # Print uplift tree as a string
+    result = uplift_tree_string(uplift_model.fitted_uplift_tree, feat_names)
 
-
-    # plt.figure(figsize=(15, 6))
-    # plt.plot(x, res.uplift)
-    # plt.plot(x, res.is_login)
-    # plt.show()
-
-    return None
+    # Plot uplift tree
+    graph = uplift_tree_plot(uplift_model.fitted_uplift_tree, feat_names)
+    graph.write_png("dtr.png")
 
 
 if __name__ == '__main__':
     # data input path
-    input = '../config/schema.yaml,../data/train.csv'
+    input = '../config/schema.yaml,../data/train.csv, ../data/match.csv'
 
     # model training config
     main(input)
-

@@ -232,8 +232,7 @@ def main(input, model_config, dataset=None, offline=True):
     saved_columns = used_feat + [treatment_col, exp_col, label_col, config['index']]
     matched_pair = df_matched[['user_id', 'matched_ID']]
 
-    matched_res = pd.merge(matched_pair, raw_data[saved_columns], how='inner',
-                           on='user_id')
+    matched_res = pd.merge(matched_pair, raw_data[saved_columns], how='inner',  on='user_id')
     matched_res = pd.merge(matched_res, raw_data[saved_columns], how='inner',
                            left_on='matched_ID', right_on='user_id', suffixes=('', '_matched'))
     return res, matched_res
@@ -246,10 +245,11 @@ if __name__ == '__main__':
     model_config = {
         'model_type': 'lgb',  # lgb, logit
         'num_boost_round': 50,  # only need under lgb model_type
-        'match_type': 'stratification_match',  # stratification_match, knn
+        'match_type': 'knn',  # stratification_match, knn
         'stratification_feature': 'recent_30d_active_cnt'
     }
 
     # model training config
     res, matched_res = main(input, model_config)
+    matched_res.to_csv('../data/match.csv')
     print(res)
