@@ -184,7 +184,7 @@ class PropensityScoreMatching:
         # Matching stage:
         if self.match_type == 'knn':
             print('KNN matching ...')
-            self._model.knn_matched(matcher='propensity_score', replacement=False, caliper=None)
+            self._model.knn_matched(matcher='propensity_score', replacement=True, caliper=None)
         elif self.match_type == 'stratification_match':
             print('Stratification matching ...')
             self._model.stratification_matching(stratification_feature=self.model_config['stratification_feature'])
