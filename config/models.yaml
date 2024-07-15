@@ -2,3 +2,20 @@ decision_tree:
   criterion: "entropy"
   max_depth: 4
   min_samples_split: 1000
+
+lightgbm:
+  num_leaves: 32
+  max_depth: 8
+  min_data_in_leaf: 20
+  min_child_samples: 20
+  objective: "binary"
+  learning_rate: 0.1
+  boosting: "gbdt"
+  feature_fraction: 0.8
+  bagging_freq: 0
+  bagging_fraction: 0.8
+  bagging_seed: 23
+  metric: "auc"
+  lambda_l1: 0.2
+  nthread: 4
+  verbose: -1
