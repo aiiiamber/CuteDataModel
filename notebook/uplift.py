@@ -17,9 +17,10 @@ from causalml.metrics.visualize import auuc_score, get_cumlift
 from sklearn.model_selection import train_test_split
 
 from notebook.tools import parse_schema
+from notebook.test import ks_test
 
 CONTROL_GROUP = 'control'
-EXP_GROUP = 'exp_content'
+EXP_GROUP = 'exp'
 
 
 def evaluate(df, outcome_col, treatment_col, plot=False):
@@ -37,7 +38,7 @@ def evaluate(df, outcome_col, treatment_col, plot=False):
     gain = gain * modify_factor / control_conversion_ucnt
 
     # metric
-    auuc_metric = auuc_score(df)
+    auuc_metric = auuc_score(df, outcome_col=outcome_col, treatment_col=treatment_col)
     print("AUUC metric: \n", auuc_metric)
     title_name = '{}'.format(', '.join(["{}:{:.2%}".format(k, v) for k, v in greatest_gain.items()]))
     print(title_name)
@@ -114,7 +115,7 @@ def generate_evaluation_result(data, feat_columns, label_col, uplift_model, resp
     # response model
     y_prod = response_model.predict(df_test[feat_columns])
     df_res['response_model'] = y_prod
-    df_res['w'] = df_test['is_exp_treatment']
+    df_res['t'] = df_test['is_exp_treatment']
     df_res['y'] = df_test[label_col]
     # store result
     df_test['causalML'] = y_pred
@@ -141,37 +142,47 @@ def main(input, model_type='randomForest', dataset=None, offline=True, store_res
     else:
         raw_data = dataset
     raw_data.columns = list(schema.keys())
-    raw_data.fillna('未知', inplace=True)
+
+    # Step1：数据预处理
+    raw_data.fillna('0', inplace=True)
     raw_data[config['index']] = raw_data[config['index']].astype(str)
     raw_data[config['numerical_fc']] = raw_data[config['numerical_fc']].apply(pd.to_numeric)
-
+    # generate config
     feat_names = config['numerical_fc']
     treatment_col, exp_col, label_col = config['treatment'], config['exp'], config['label']
     raw_data['is_exp_treatment'] = raw_data[exp_col].apply(lambda x: 1 if x == EXP_GROUP else 0)
     # df = raw_data.sample(frac=1).reset_index(drop=True) # random
     df = raw_data
     print(df.pivot_table(values=label_col, index=[exp_col, treatment_col], aggfunc=[np.mean, np.size]))
-
     # Split data to training and testing samples for model validation (next section)
-    train_data, test_data = train_test_split(df, test_size=0.2, random_state=1024)
+    train_data, test_data = train_test_split(df, test_size=0.3, random_state=1024)
+    # ks_test(train_data, test_data, feat_names + [label_col, 'is_exp_treatment'])
     print('Data distribution ...')
     print(train_data.pivot_table(values=label_col, index=[exp_col], aggfunc=[np.mean, np.size]))
     print(test_data.pivot_table(values=label_col, index=[exp_col], aggfunc=[np.mean, np.size]))
 
-    # Train uplift model
+    # Step2：训练模型
+    # training uplift model
     print('Uplift Model training ...')
-    uplift_model = run_uplift_model(train_data, feat_columns=feat_names, treatment_col=exp_col, label_col=label_col,
+    uplift_model = run_uplift_model(train_data,
+                                    feat_columns=feat_names,
+                                    treatment_col=exp_col,
+                                    label_col=label_col,
                                     model_type=model_type)
-    # Train response model
+    # training response model
     print('Response Model training ...')
-    response_model = run_lightgbm(data=train_data, feat_columns=feat_names, category_columns=[], label_col=label_col)
+    response_model = run_lightgbm(data=train_data,
+                                  feat_columns=feat_names,
+                                  category_columns=[],
+                                  label_col=label_col)
 
     # Only for model_type tree-based
-    if store_res:
+    if model_type == 'tree-based' and store_res:
         # Plot uplift tree
         graph = uplift_tree_plot(uplift_model.fitted_uplift_tree, feat_names)
         graph.write_png("../tmp/pic/dtr.png")
 
+    # Step3：评估模型结果
     # Prediction and Evaluation
     train_res, df_train = generate_evaluation_result(train_data,
                                                      feat_columns=feat_names,
@@ -179,22 +190,22 @@ def main(input, model_type='randomForest', dataset=None, offline=True, store_res
                                                      uplift_model=uplift_model,
                                                      response_model=response_model,
                                                      uplift_model_type=model_type)
-    evaluate(train_res, outcome_col='y', treatment_col='w', plot=True)
+    evaluate(train_res, outcome_col='y', treatment_col='t', plot=True)
     test_res, df_test = generate_evaluation_result(test_data,
                                                    feat_columns=feat_names,
                                                    label_col=label_col,
                                                    uplift_model=uplift_model,
                                                    response_model=response_model,
                                                    uplift_model_type=model_type)
-    evaluate(test_res, outcome_col='y', treatment_col='w', plot=False)
+    evaluate(test_res, outcome_col='y', treatment_col='t', plot=False)
 
     # store result
-    df_train.to_excel('../tmp/res/res.xlsx')
+    df_train.to_csv('../data/res/res.csv', encoding='utf-8', index=False)
 
 
 if __name__ == '__main__':
     # data input path
-    input = '../config/schema.yaml,../data/train.csv, ../data/match.csv'
+    input = '../config/schema-new.yaml,../data/train/train-0910.csv, ../data/match.csv'
 
     # model training config
-    main(input, model_type='tree-based', store_res=True)
+    main(input, model_type='randomForest', store_res=True)
