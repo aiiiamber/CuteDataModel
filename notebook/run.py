@@ -17,8 +17,8 @@ sns.set(rc={'figure.figsize': (10, 8)}, font_scale=1.3)
 import matplotlib.pyplot as plt
 
 from notebook.psm import PropensityScoreMatching
-from notebook.tools import preprocessing_data, parse_schema, parse_category_feat
 from notebook.model_tools import *
+from notebook.data_builder import *
 
 CONTROL_GROUP = 'control'
 EXP_GROUP = 'exp_content'
@@ -123,6 +123,7 @@ def main(input, model_config, dataset=None, offline=True):
     print("load yaml file {} ... ".format(schema_path))
     schema = yaml.safe_load(open(schema_path, 'r', encoding='utf8'))
     config = parse_schema(schema)
+    if_fc_selection, if_fc_format = model_config['if_fc_selection'], model_config['if_fc_format']
     treatment_col, exp_col, label_col = config['treatment'], config['exp'], config['label']
     fc_cols, num_fc_cols, categorical_fc_cols = config['fc'], config['numerical_fc'], config['category_fc']
 
@@ -135,29 +136,27 @@ def main(input, model_config, dataset=None, offline=True):
     raw_data.fillna(0, inplace=True)  # 填充Nan
     raw_data[config['index']] = raw_data[config['index']].astype(str)
     raw_data[num_fc_cols] = raw_data[num_fc_cols].apply(pd.to_numeric)
-
-    print("\n>>>> Feature Selection")
-    used_feat = feature_selection(raw_data, num_fc_cols, label_col) if model_config['feature_selection'] else fc_cols
+    used_feat = feature_selection(raw_data, num_fc_cols, label_col) if if_fc_selection else fc_cols
     print("used feature size: {}".format(len(used_feat)))
 
-    # data distribution
+    # STEP0: Preprocessing data
     print(">>>> Data distribution")
     print(raw_data.pivot_table(values=label_col,
                                index=['game_tag_name', exp_col, treatment_col],
                                aggfunc=[np.mean, np.size]))
+    raw_data, feature_map, final_fc_cols = dataset_builder(raw_data,
+                                                           categorical_columns=categorical_fc_cols,
+                                                           numerical_columns=num_fc_cols,
+                                                           key_column='game_tag_name',
+                                                           if_format=if_fc_format)
     train_data = raw_data[raw_data[exp_col] == EXP_GROUP]
     control_data = raw_data[raw_data[exp_col] == CONTROL_GROUP]
-
-    # preprocessing data
-    features = parse_category_feat(train_data, config['category_fc'])
-    train_data = preprocessing_data(train_data, features)
-    control_data = preprocessing_data(control_data, features)
 
     print("\n>>>> Build PSM")
     # STEP1：PSM匹配
     model = PropensityScoreMatching(label_column=treatment_col,
                                     index_column=config['index'],
-                                    fc_columns=used_feat,
+                                    fc_columns=final_fc_cols,
                                     dataset=train_data,
                                     control_data=control_data,
                                     model_config=model_config,
@@ -190,13 +189,6 @@ def main(input, model_config, dataset=None, offline=True):
                                                          'binary_predicted_label',
                                                          label_col,
                                                          return_outcome=True)
-    print("Exp data >> \n{}".format(exp_content))
-    print("Control data >> \n{}".format(control_content))
-    ate, att = exp_res[1] / control_res[1] - 1, exp_res[2] / control_res[2] - 1
-    print('Treatment Effect: ATE: {ae: .4%}, ATT: {at:.4%}'.format(ae=ate, at=att))
-    att_before = control_before_res[2] / exp_res[2] - 1
-    res = [ate, att, exp_res[0], control_before_res[0], exp_res[0], control_res[0],
-           exp_res[2], control_before_res[2], att_before, exp_res[2], control_res[2]]
 
     saved_columns = used_feat + [treatment_col, exp_col, label_col, config['index']]
     matched_pair = df_matched[['user_id', 'matched_ID']]
@@ -216,7 +208,8 @@ if __name__ == '__main__':
         'num_boost_round': 50,  # only need under lgb model_type
         'match_type': 'knn',  # stratification_match, knn
         'stratification_feature': 'recent_30d_active_cnt',
-        'feature_selection': False
+        'if_fc_selection': False,
+        'if_fc_format': True
     }
 
     # model training config
