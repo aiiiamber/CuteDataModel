@@ -14,50 +14,6 @@ from statsmodels.stats.libqsturng import qsturng
 from scipy.stats import chi2_contingency
 
 
-def tukeyHSD(info, alpha=0.05):
-    """
-    tukey's method with summary statistics
-
-    params:
-    - info: list, each element to be the mean, variance and sample size
-    of each version. e.g. [(mean, variance, sample_size),...]
-    - alpha: float, FWER control, 0.05 by default
-
-    returns:
-    - HSD: dictionary, contains
-        - adjusted confidence interval
-        - whether to reject
-      for each pair-wise comparison
-    """
-
-    # number of variants
-    k = len(info)
-    # Total samples
-    n = sum([_[2] for _ in info])
-    # average sample per variant
-    r = int(n / k)
-    # critical value: studentized range
-    Q = qsturng(1 - alpha, k, n - k)
-    D = Q / np.sqrt(r)
-    # sum of squares
-    SSE = sum((_[2] - 1) * _[1] for _ in info)
-    MSE = float(SSE) / (n - k)
-    # adjusted margin
-    margin = D * np.sqrt(MSE)
-    # tukey's honest significance test
-    HSD = collections.defaultdict(dict)
-    # pair-wise comparison
-    for base_idx in range(len(info)):
-        for trt_idx in range(base_idx + 1, len(info)):
-            m_diff = -(info[base_idx][0] - info[trt_idx][0])
-            HSD[str(base_idx) + '-' + str(trt_idx)]['CI'] = (m_diff - margin, m_diff + margin)
-            if m_diff - margin > 0 or m_diff + margin < 0:
-                HSD[str(base_idx) + '-' + str(trt_idx)]['reject'] = True
-            else:
-                HSD[str(base_idx) + '-' + str(trt_idx)]['reject'] = False
-    return HSD
-
-
 def chi_square_test(df, indicator):
     """
     Chi-Square

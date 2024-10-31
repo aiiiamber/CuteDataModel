@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 
 from notebook.psm import PropensityScoreMatching
 from notebook.tools import preprocessing_data, parse_schema, parse_category_feat
+from notebook.model_tools import *
 
 CONTROL_GROUP = 'control'
 EXP_GROUP = 'exp_content'
@@ -118,74 +119,42 @@ def main(input, model_config, dataset=None, offline=True):
     else:
         schema_path = file_path[0]
 
-    # config
+    # config：读取基础配置
     print("load yaml file {} ... ".format(schema_path))
     schema = yaml.safe_load(open(schema_path, 'r', encoding='utf8'))
     config = parse_schema(schema)
+    treatment_col, exp_col, label_col = config['treatment'], config['exp'], config['label']
+    fc_cols, num_fc_cols, categorical_fc_cols = config['fc'], config['numerical_fc'], config['category_fc']
 
-    # load data
+    # load data：加载数据
     if offline:
         raw_data = pd.read_csv(data_path, encoding='utf-8')
     else:
         raw_data = dataset
     raw_data.columns = list(schema.keys())
-    raw_data.fillna('未知', inplace=True)
+    raw_data.fillna(0, inplace=True)  # 填充Nan
     raw_data[config['index']] = raw_data[config['index']].astype(str)
-    raw_data[config['numerical_fc']] = raw_data[config['numerical_fc']].apply(pd.to_numeric)
-
-    treatment_col, exp_col, label_col = config['treatment'], config['exp'], config['label']
-    # data distribution
-    train_data = raw_data[raw_data[exp_col] == EXP_GROUP]
-    control_data = raw_data[raw_data[exp_col] == CONTROL_GROUP]
-    print(">>>> Data distribution")
-    print("Train data >> \n{}".format(generate_distribution(train_data, treatment_col, label_col)))
-    control_before_context, control_before_res = generate_distribution(control_data,
-                                                                       treatment_col,
-                                                                       label_col,
-                                                                       return_outcome=True)
-    print("Control data >> \n{}".format(control_before_context))
-
-    # pearson correlation：only numerical feature
-    # train_data = train_data[train_data.is_treatment == 1]
-    corr_matrix = abs(train_data[[treatment_col] + config['numerical_fc']].corr())
-    feat_corr = abs(corr_matrix[treatment_col]).sort_values(ascending=False)
-
-    corr_y_matrix = abs(train_data[[label_col] + config['numerical_fc']].corr())
-    feat_corr_y = abs(corr_y_matrix[label_col]).sort_values(ascending=False).to_dict()
+    raw_data[num_fc_cols] = raw_data[num_fc_cols].apply(pd.to_numeric)
 
     print("\n>>>> Feature Selection")
-    print("Selected features correlation with is treatment >> ")
-    # print(feat_corr[1:11])
-    # feature selection
-    used_feat = []
-    used_feat.extend(config['category_fc'])
-    filter_col = []
-    for k, v in feat_corr[1:].to_dict().items():
-        if k in filter_col:
-            continue
+    used_feat = feature_selection(raw_data, num_fc_cols, label_col) if model_config['feature_selection'] else fc_cols
+    print("used feature size: {}".format(len(used_feat)))
 
-        corr_y = feat_corr_y[k]
-        if v < 0.1 and corr_y < 0.1:
-            print("skipped feature {}".format(k))
-            filter_col.append(k)
-        else:
-            print("feature: {}, correlation with treatment: {c_t: .4f}, with outcome: {c_o: .4f}".format(k,
-                                                                                                         c_t=v,
-                                                                                                         c_o=corr_y))
-            used_feat.append(k)
-            # filter high correlation feature
-            cols = corr_matrix[(corr_matrix[k] > 0.6) & (corr_matrix[k] < 1)][k].index.to_list()
-            filter_col.extend(cols)
-    print("used feature number: {}".format(len(used_feat)))
-    print('feature: {}'.format("\",\"".join(used_feat)))
+    # data distribution
+    print(">>>> Data distribution")
+    print(raw_data.pivot_table(values=label_col,
+                               index=['game_tag_name', exp_col, treatment_col],
+                               aggfunc=[np.mean, np.size]))
+    train_data = raw_data[raw_data[exp_col] == EXP_GROUP]
+    control_data = raw_data[raw_data[exp_col] == CONTROL_GROUP]
 
     # preprocessing data
     features = parse_category_feat(train_data, config['category_fc'])
     train_data = preprocessing_data(train_data, features)
     control_data = preprocessing_data(control_data, features)
 
-    print("\n>>>> Build Model")
-    # build model
+    print("\n>>>> Build PSM")
+    # STEP1：PSM匹配
     model = PropensityScoreMatching(label_column=treatment_col,
                                     index_column=config['index'],
                                     fc_columns=used_feat,
@@ -232,7 +201,7 @@ def main(input, model_config, dataset=None, offline=True):
     saved_columns = used_feat + [treatment_col, exp_col, label_col, config['index']]
     matched_pair = df_matched[['user_id', 'matched_ID']]
 
-    matched_res = pd.merge(matched_pair, raw_data[saved_columns], how='inner',  on='user_id')
+    matched_res = pd.merge(matched_pair, raw_data[saved_columns], how='inner', on='user_id')
     matched_res = pd.merge(matched_res, raw_data[saved_columns], how='inner',
                            left_on='matched_ID', right_on='user_id', suffixes=('', '_matched'))
     return res, matched_res
@@ -240,13 +209,14 @@ def main(input, model_config, dataset=None, offline=True):
 
 if __name__ == '__main__':
     # data input path
-    input = '../config/schema.yaml,../data/train.csv'
+    input = '../config/schema-model.yaml,../data/train.csv'
     # model config
     model_config = {
         'model_type': 'lgb',  # lgb, logit
         'num_boost_round': 50,  # only need under lgb model_type
         'match_type': 'knn',  # stratification_match, knn
-        'stratification_feature': 'recent_30d_active_cnt'
+        'stratification_feature': 'recent_30d_active_cnt',
+        'feature_selection': False
     }
 
     # model training config

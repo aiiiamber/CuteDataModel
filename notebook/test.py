@@ -2,7 +2,7 @@
 
 import numpy as np
 import scipy.stats as stats
-from itertools import combinations,permutations
+from itertools import combinations, permutations
 
 
 def ks_test(data1, data2, feature_names, alpha=0.05):

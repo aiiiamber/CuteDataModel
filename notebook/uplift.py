@@ -16,7 +16,7 @@ from causalml.metrics.visualize import auuc_score, get_cumlift
 
 from sklearn.model_selection import train_test_split
 
-from notebook.tools import parse_schema
+from notebook.tools import parse_schema, feature_selection
 from notebook.test import ks_test
 
 CONTROL_GROUP = 'control'
@@ -39,7 +39,7 @@ def evaluate(df, outcome_col, treatment_col, plot=False):
 
     # metric
     auuc_metric = auuc_score(df, outcome_col=outcome_col, treatment_col=treatment_col)
-    print("AUUC metric: \n", auuc_metric)
+    print("AUUC metric:\n", auuc_metric)
     title_name = '{}'.format(', '.join(["{}:{:.2%}".format(k, v) for k, v in greatest_gain.items()]))
     print(title_name)
 
@@ -58,12 +58,6 @@ def evaluate(df, outcome_col, treatment_col, plot=False):
 def run_lightgbm(data, feat_columns, category_columns, label_col, num_boost_round=50):
     """
     Response Model
-    :param data:
-    :param feat_columns:
-    :param category_columns:
-    :param label_col:
-    :param num_boost_round:
-    :return:
     """
 
     x, y = data[feat_columns], data[label_col]
@@ -78,26 +72,36 @@ def run_lightgbm(data, feat_columns, category_columns, label_col, num_boost_roun
                     train_set=train_data,
                     num_boost_round=num_boost_round,
                     valid_sets=[train_data, val_data])
+
+    importance = clf.feature_importance(importance_type='split')
+    df = pd.DataFrame({
+        'feature_name': feat_columns,
+        'importance': importance
+    })
+    # print(df.sort_values('importance', ascending=False))
     return clf
 
 
 def run_uplift_model(data, feat_columns, treatment_col, label_col, control_group_name='control',
                      model_type='tree-based'):
+
     if model_type == 'tree-based':
         clf = UpliftTreeClassifier(control_name=control_group_name)
         clf.fit(data[feat_columns].values,
                 treatment=data[treatment_col].values,
                 y=data[label_col].values)
+
     elif model_type == 'randomForest':
-        clf = UpliftRandomForestClassifier(max_depth=4,
-                                           min_samples_leaf=200,
-                                           min_samples_treatment=20,
-                                           n_reg=10,
-                                           evaluationFunction='KL',
+        params = yaml.safe_load(open('../config/models.yaml', 'r', encoding='utf8'))['randomForest']
+        clf = UpliftRandomForestClassifier(max_depth=params['max_depth'],
+                                           min_samples_leaf=params['min_samples_leaf'],
+                                           min_samples_treatment=params['min_samples_treatment'],
+                                           n_reg=params['n_reg'],
                                            control_name=control_group_name)
         clf.fit(data[feat_columns].values,
                 treatment=data[treatment_col].values,
                 y=data[label_col].values)
+
     else:
         raise ValueError("Only support tree-based and randomForest model")
 
@@ -161,18 +165,24 @@ def main(input, model_type='randomForest', dataset=None, offline=True, store_res
     print(train_data.pivot_table(values=label_col, index=[exp_col], aggfunc=[np.mean, np.size]))
     print(test_data.pivot_table(values=label_col, index=[exp_col], aggfunc=[np.mean, np.size]))
 
+    # feature selection
+    label_selected_feat_columns = feature_selection(train_data, feature_columns=feat_names, label_column=label_col)
+    treat_selected_feat_columns = feature_selection(train_data, feature_columns=feat_names, label_column=treatment_col)
+    selected_columns = list(set(label_selected_feat_columns).union(set(treat_selected_feat_columns)))
+    print(selected_columns)
+
     # Step2：训练模型
     # training uplift model
     print('Uplift Model training ...')
     uplift_model = run_uplift_model(train_data,
-                                    feat_columns=feat_names,
+                                    feat_columns=selected_columns,
                                     treatment_col=exp_col,
                                     label_col=label_col,
                                     model_type=model_type)
     # training response model
     print('Response Model training ...')
     response_model = run_lightgbm(data=train_data,
-                                  feat_columns=feat_names,
+                                  feat_columns=selected_columns,
                                   category_columns=[],
                                   label_col=label_col)
 
@@ -185,14 +195,14 @@ def main(input, model_type='randomForest', dataset=None, offline=True, store_res
     # Step3：评估模型结果
     # Prediction and Evaluation
     train_res, df_train = generate_evaluation_result(train_data,
-                                                     feat_columns=feat_names,
+                                                     feat_columns=selected_columns,
                                                      label_col=label_col,
                                                      uplift_model=uplift_model,
                                                      response_model=response_model,
                                                      uplift_model_type=model_type)
     evaluate(train_res, outcome_col='y', treatment_col='t', plot=True)
     test_res, df_test = generate_evaluation_result(test_data,
-                                                   feat_columns=feat_names,
+                                                   feat_columns=selected_columns,
                                                    label_col=label_col,
                                                    uplift_model=uplift_model,
                                                    response_model=response_model,
@@ -204,8 +214,9 @@ def main(input, model_type='randomForest', dataset=None, offline=True, store_res
 
 
 if __name__ == '__main__':
-    # data input path
+    # config
     input = '../config/schema-new.yaml,../data/train/train-0910.csv, ../data/match.csv'
+    model_type = 'randomForest'
 
     # model training config
-    main(input, model_type='randomForest', store_res=True)
+    main(input, model_type=model_type, store_res=True)

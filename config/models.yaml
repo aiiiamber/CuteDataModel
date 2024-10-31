@@ -19,3 +19,11 @@ lightgbm:
   lambda_l1: 0.2
   nthread: 4
   verbose: -1
+
+randomForest:
+  max_depth: 8
+  min_samples_leaf: 1000
+  min_samples_treatment: 1000
+  n_reg: 10
+  evaluationFunction: "KL"
+  n_estimators: 100
